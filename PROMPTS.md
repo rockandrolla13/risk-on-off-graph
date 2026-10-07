@@ -18,7 +18,7 @@ Phase map:
 | Phase | Prompt | Output file | Gate |
 |---|---|---|---|
 | 0 | Project charter | `CLAUDE.md` | — |
-| 1 | Frame the problem: what is the graph, what is "risk-on" | `docs/01-framing.md` | You pick the graph type and target |
+| 1 | Frame the problem: specify the type-A graph, define "risk-on" | `docs/01-framing.md` | You approve the graph spec and target |
 | 2 | Stress-test the framing | `docs/02-challenge.md` | You accept or revise |
 | 3 | Data contract | `docs/03-data-contract.md` | You confirm what data exists |
 | 4 | Architecture | `docs/04-architecture.md` | You approve the modules |
@@ -70,7 +70,7 @@ DEFINITIONS (fill in as phases settle them)
 - Universe of nodes: {{e.g. ~30 cross-asset series: equity indices, rates, credit spreads, FX, commodities, vol}}
 - Frequency: {{daily close, with a fixed cut-off time and time zone}}
 - Sample: {{start date – end date}}
-- Graph type: {{decided in Phase 1}}
+- Graph type: A — market network (nodes: cross-asset series; edges: co-movement). Decided.
 - Target meaning of "risk-on": {{decided in Phase 1}}
 
 WHERE THINGS LIVE
@@ -82,26 +82,31 @@ WHERE THINGS LIVE
 ## Phase 1 — Frame the problem
 
 ```text
-Read the charter. We are at Phase 1. Write no code.
+Read the charter. We are at Phase 1. Write no code. The graph type is decided: A.
 
-Write docs/01-framing.md answering three questions. For each, give 2–4 options,
+Write docs/01-framing.md answering three questions. For Q2 and Q3, give 2–4 options,
 the trade-offs in plain English, and your recommendation with the reason.
 
-Q1. WHAT IS THE GRAPH?
-Consider at least these options:
-  A. Market network: nodes are assets or factors; edges measure co-movement
-     (e.g. rolling correlation, partial correlation, graphical lasso).
-     Risk-off shows up as changes in the graph's shape: higher density, one dominant
-     cluster, rising centrality of safe havens.
-  B. Lead-lag / causal network: directed edges for "X helps predict Y"
-     (e.g. Granger tests, VAR, transfer entropy, a learned DAG from time series).
-     Risk-off shows up as changes in who leads whom.
-  C. Indicator dependency graph (a computation DAG): nodes are raw inputs and
-     derived indicators; edges are transformations. This is an engineering structure,
-     not a market model.
-  D. Hybrid: build A or B, extract graph features, feed them to a regime model.
-For each, say what risk-on/off would look like in the graph, what data it needs,
-how noisy it is with daily data, and how hard it is to test.
+Q1. THE GRAPH — TYPE A (MARKET NETWORK) IS DECIDED. SPECIFY IT.
+Nodes are cross-asset daily series; edges measure co-movement. Do not re-open the
+choice of graph type. Specify:
+  - Node set: groups (equity, credit, rates, FX, commodities, volatility) and each
+    group's expected role (risky / haven / mixed). Say whether implied-volatility
+    series should be nodes, given that the VIX is also a baseline (circularity).
+  - Node signal: returns or changes, and whether to divide each by its own trailing
+    volatility first, so the graph measures correlation rather than volatility.
+  - Edge estimator: compare rolling correlation with shrinkage, exponentially
+    weighted correlation, partial correlation (graphical lasso) and rank correlation.
+    Recommend one for version 1 and one for version 2.
+  - Window and step: default length and the robustness grid.
+  - Representation: full weighted matrix, minimum spanning tree, threshold graph,
+    or sparse planar graphs — which measures each one supports.
+  - Mixed closing times: how to handle markets that close at different hours.
+  - What risk-off should look like in the graph, as testable hypotheses: e.g. one
+    dominant eigenvector (absorption ratio), a shrinking tree, risky assets moving
+    as one block with havens against it, unusual correlation patterns with
+    volatility removed, merging clusters, fast structural change.
+Cite only papers you can name exactly; mark anything else [D] or [Q].
 
 Q2. WHAT DOES "RISK-ON / RISK-OFF" MEAN AS A TARGET?
 There is no observed label. Options include:
@@ -395,10 +400,10 @@ Write README.md and docs/11-handover.md:
 
 These are suggestions, tagged [D], to be confirmed in the relevant phase.
 
-- **Graph type:** start with **A (market network)** using shrunk rolling correlation on daily returns, then add **B (lead-lag)** only if A beats the baselines. A is easier to test and explain. [D]
+- **Graph type:** **A (market network)**, decided. Start with shrunk rolling correlation on volatility-adjusted returns; consider lead-lag edges (type B) only if A beats the baselines. [D]
 - **Asynchronous closes:** use returns over two days or weekly returns for cross-time-zone pairs, or align everything to one cut-off and lag late closes by one day. [D]
 - **First features:** average absolute correlation, largest-eigenvalue share, safe-haven centrality (gold, JPY, CHF, Treasuries), and day-to-day graph change. [D]
 - **Target:** an unsupervised continuous score, evaluated against a pre-registered episode list and a hidden Markov model on the baselines, using **filtered** probabilities only. [D]
 - **Kill criterion:** if the graph score adds no out-of-sample information beyond an equal-weight z-score of the same inputs, drop the graph. [D]
 
-Related material in this wiki: `concepts/hidden-markov-models`, `concepts/regime-switching-models`, `concepts/graph-signal-processing`, `concepts/structural-vector-autoregression`, `sources/misiakos-2025-dag-tfrc` (DAGs from time series), `sources/ms-2018-07-09-em-risk-indicator-regime-switching` (a regime indicator's input set), `analyses/credit-universe-topology-and-representation` (graph and sheaf representation of a credit universe).
+Related material in the LLMWikiGeneration wiki (not in this repo): `concepts/hidden-markov-models`, `concepts/regime-switching-models`, `concepts/graph-signal-processing`, `concepts/structural-vector-autoregression`, `sources/misiakos-2025-dag-tfrc` (DAGs from time series), `sources/ms-2018-07-09-em-risk-indicator-regime-switching` (a regime indicator's input set), `analyses/credit-universe-topology-and-representation` (graph and sheaf representation of a credit universe).
