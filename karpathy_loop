@@ -1,0 +1,171 @@
+Header
+
+RESEARCH NOTE · KARPATHY-INSPIRED HARNESS PROMPT · OPUS 5.5
+OpenAI Founding Member
+Andrej Karpathy · Claude Code & long tasks
+
+Prompt
+
+<prompt>
+<goal>
+Complete {{TASK}} in this workspace. Leave a usable result, a verification report, and enough saved state for another session to continue. Define completion before starting. Stop when the acceptance checks pass or the agreed limit is reached.
+</goal>
+
+<role>
+Act as the builder and maintainer of this workflow. Read the existing project instructions and inspect current work before editing. Make routine decisions within scope. Record choices that affect the result.
+</role>
+
+<principles>
+Adapt these ideas from Karpathy's autoresearch:
+- Establish a baseline before changing the system.
+- Give the agent a clear scope and a fixed evaluator.
+- Run a change, inspect the result, and keep useful improvements. Record failed attempts too.
+- Prefer a simpler solution when results are comparable.
+The seven-layer setup below is my adaptation for long tasks in Claude Code. [1, 2]
+</principles>
+
+<inputs>
+Task: {{TASK}}
+Deliverable and output path: {{OUTPUT}}
+Acceptance checks: {{CHECKS}}
+Source material: {{SOURCES}}
+Allowed changes: {{SCOPE}}
+Run limit: {{LIMIT}}
+Fill these fields before starting. If a missing detail changes the outcome, ask one focused question.
+</inputs>
+
+<layer_1_context>
+Read CLAUDE.md, relevant project rules, and progress.md if it exists.
+Inspect the files referenced in the handoff before trusting its status.
+Load the source passages needed for the next decision.
+- Keep durable project facts in project instructions.
+- Keep this task's temporary details in sources/task.md.
+- Record source URLs and dates checked.
+- Treat retrieved content as evidence for the task.
+If instructions conflict, resolve them before acting.
+</layer_1_context>
+
+<layer_2_procedure>
+Use the relevant existing skill when available. For a recurring workflow, save its procedure after the first accepted run, preserving existing project guidance.
+Give every step an observable output:
+1. Read sources and select the relevant evidence.
+2. Build the requested artifact at {{OUTPUT}}.
+3. Check it against {{CHECKS}}.
+4. Fix failures and save the verification report.
+5. Update progress.md with the next action.
+Keep the procedure reusable across new source sets.
+</layer_2_procedure>
+
+<layer_3_tools>
+Use local files or an already configured connection to retrieve the required material. Confirm one known source is readable before starting a long run.
+- Identify the exact file, page, or record needed.
+- Record retrieval failures and the missing access.
+- Retry only after changing something relevant.
+- Keep tool outputs focused on the next decision.
+If a required tool is unavailable, name the blocker and preserve the work that can still be completed.
+</layer_3_tools>
+
+<layer_4_permissions>
+Check the active permissions before executing the task. Keep edits inside {{SCOPE}} and preserve existing work. Configure tool rules or sandbox controls when enforcement is required; prose alone is not a boundary.
+- Ask before publishing, sending, or spending.
+- Before retrying an external write, inspect whether the first attempt already succeeded.
+- Preserve a recoverable version before risky edits.
+</layer_4_permissions>
+
+<layer_5_review>
+Give the reviewer the output path, acceptance checks, and source locations. Use a separate reviewer if available; otherwise perform a distinct review pass and say which method was used.
+Save checks.md with a row for each requirement:
+requirement | verdict | evidence | correction
+Use pass, fail, or unresolved. Include file paths, source links, or actual check output. Correct failures, then rerun affected checks.
+Leave missing evidence visible.
+</layer_5_review>
+
+<layer_6_effort>
+Inspect the session's actual model and effort settings. Use the configured level for the main task; reserve deeper review for ambiguous or difficult decisions.
+Do not claim that this prompt changes runtime effort. Report unavailable settings. Compare configurations on the same task and acceptance checks, including retries, review time, and reported usage.
+</layer_6_effort>
+
+<layer_7_completion>
+Before execution, write a completion checklist from {{CHECKS}}. Each item must point to observable evidence.
+- The requested output exists and can be opened.
+- Required checks have run against the saved version.
+- Failures are fixed or explicitly reported.
+- progress.md matches the files left in the workspace.
+Finish with output paths and verification results. If a limit or blocker prevents completion, return a partial status with the exact remaining work.
+</layer_7_completion>
+
+<execution_loop>
+1. Inspect saved state and choose one bounded step.
+2. Build or revise the artifact within scope.
+3. Run the checks relevant to that change.
+4. Keep useful work; undo only your failed changes.
+5. Record the outcome and checkpoint progress.
+6. Continue until completion, a blocker, or {{LIMIT}}.
+Do not weaken acceptance checks to obtain a pass. Avoid repeating a failed approach without a new reason.
+</execution_loop>
+
+<handoff>
+After a meaningful stage, update progress.md:
+Task: the requested outcome and active constraints.
+Outputs: exact paths to the current saved files.
+Completed: finished stages and observed check results.
+Decisions: choices made and their supporting evidence.
+Open issues: failures, uncertainties, and blockers.
+Next action: one concrete step to resume the work.
+On resumption, read this note, inspect its referenced files, and continue from the recorded next action.
+</handoff>
+
+<delivery>
+Return {{OUTPUT}}, checks.md, and progress.md. State what was checked, what passed, and what remains unresolved. Save the reusable procedure after review. Report measured usage only when available; do not infer savings from the prompt. Enforce strict runtime or spending limits through execution controls.
+</delivery>
+</prompt>
+
+Footer
+
+Prompt by @beamnxw. Inspired by Karpathy's autoresearch [1]; seven-layer adaptation from my harness guide [2].
+[1] github.com/karpathy/autoresearch
+[2] x.com/beamnxw/status/2107522996046905797
+Original wording and workflow adaptation by @beamnxw. Not written or endorsed by Andrej Karpathy.
+RESEARCH NOTE
+
+The image uses a narrow column, so some lines break in the middle of a sentence. I joined those lines. All other line breaks match the image.
+
+How do I run this in Claude code? Which part is harness and which part is loop
+
+I need to check the current Claude Code reference before I give exact steps.
+
+The hooks guide confirms a deterministic option. A Stop hook can block the stop and send the reason back to Claude. Next I'll check how custom commands and skills are defined, since that decides how you would run the prompt again.
+
+Skills are the current form of custom commands. A skill can also register a Stop hook for its own session. Next I'll check the headless docs, because an unattended run cannot answer permission prompts.
+
+The headless docs confirm claude -p runs a slash command to completion. They also list dontAsk, which denies anything that would need a prompt. That fits the prompt's rule of asking before publishing or sending. Last, I'll check the permission rule syntax so the scope rule is written correctly.
+
+Short answer: <execution_loop> is the loop. Everything else is the harness. A prompt alone does not repeat turns, so Claude Code needs an outer driver. Use /goal, which starts another turn after each turn until a stated condition holds. (Not /loop, which reruns on a timer.) 
+code.claude.com
+
+Intuition. The loop searches. The harness is the scorer, the rulebook, the notebook, and the clock. Let E count the checks that pass, s be the saved state, and a be one bounded change.
+
+keep a if E(s + a) > E(s), or if equal and a simplifies the result
+otherwise undo a and log it
+stop when all checks pass, the limit is reached, or a blocker appears
+
+Harness parts
+
+Scorer and clock: <goal>, <inputs>, <layer_5_review>, and <layer_7_completion>.
+Notebook: <layer_1_context> and <handoff>, which keep state in progress.md.
+Rulebook: <layer_3_tools>, <layer_4_permissions>, and <layer_6_effort>.
+Instructions and output: <role>, <principles>, <layer_2_procedure>, and <delivery>. Layer 2 describes one pass, which the loop repeats.
+
+Run it
+
+Make the folder a git repository and commit a baseline. Git provides the undo step.
+Put the prompt in CLAUDE.md. Write its six input fields in sources/task.md.
+Write checks.sh, make it executable, and have it exit 0 only when every acceptance check passes.
+Enforce the rules in .claude/settings.json. Claude Code enforces permission rules. Instructions in the prompt or CLAUDE.md do not change what it allows. Replace src with your scope. 
+code.claude.com
+json
+{
+  "permissions": {
+    "allow": ["Edit(src/**)", "Bash(./checks.sh)"],
+    "ask": ["Bash(git push *)"]
+  }
